@@ -1,0 +1,12 @@
+{
+    global:
+        slascone_client_abi_version;
+        client_create;
+        client_destroy;
+        set_client_id;
+        set_software_release;
+        set_pem_key;
+        check_offline_license;
+    local:
+        *;
+};

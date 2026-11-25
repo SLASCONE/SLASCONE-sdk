@@ -1,0 +1,6 @@
+{
+  "name": "slascone-client",
+  "version-string": "0.1.0",
+  "builtin-baseline": "2f8bf7a5bad48aaef99d80b221fca712f016ab8f",
+  "dependencies": ["xmlsec"]
+}

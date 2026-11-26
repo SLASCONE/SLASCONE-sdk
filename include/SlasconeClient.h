@@ -1,6 +1,7 @@
 #ifndef SLASCONE_CLIENT_H
 #define SLASCONE_CLIENT_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #if defined(_WIN32)
@@ -43,7 +44,8 @@ typedef enum SlasconeStatus {
     SLASCONE_RELEASE_NOT_ALLOWED = 12,
     SLASCONE_INVALID_LICENSE_DATES = 13,
     SLASCONE_LICENSE_NOT_YET_VALID = 14,
-    SLASCONE_LICENSE_EXPIRED = 15
+    SLASCONE_LICENSE_EXPIRED = 15,
+    SLASCONE_PRODUCT_ID_MISMATCH = 16
 } SlasconeStatus;
 
 /* Values are copied; NULL is invalid and an empty string clears the setting. */
@@ -51,9 +53,18 @@ SLASCONE_CLIENT_API SlasconeStatus set_client_id(SlasconeClient *client, const c
 SLASCONE_CLIENT_API SlasconeStatus set_software_release(SlasconeClient *client, const char *value);
 SLASCONE_CLIENT_API SlasconeStatus set_pem_key(SlasconeClient *client, const char *value);
 
-/* Paths are UTF-8. A NULL or empty activation path selects inline activation. */
+/* Verifies and caches the signed license at a UTF-8 path. Failure clears the
+ * cache, as does changing the PEM key. */
+SLASCONE_CLIENT_API SlasconeStatus read_offline_license(
+    SlasconeClient *client, const char *license_path);
+
+/* Checks the cached license. A NULL or empty UTF-8 path selects inline activation. */
 SLASCONE_CLIENT_API SlasconeStatus check_offline_license(
-    SlasconeClient *client, const char *license_path, const char *activation_path);
+    SlasconeClient *client, const char *activation_path);
+
+/* Reads a signed flag, not an activation result. Missing features are inactive. */
+SLASCONE_CLIENT_API SlasconeStatus check_license_feature(
+    SlasconeClient *client, const char *feature_id, bool *is_active);
 
 #ifdef __cplusplus
 }

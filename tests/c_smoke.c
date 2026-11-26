@@ -4,7 +4,7 @@
 
 int main(void)
 {
-    if (slascone_client_abi_version() != 1)
+    if (slascone_client_abi_version() != 2)
         return 1;
 
     SlasconeClient *client = client_create(NULL);

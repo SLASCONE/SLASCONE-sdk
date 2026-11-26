@@ -6,7 +6,9 @@
         set_client_id;
         set_software_release;
         set_pem_key;
+        read_offline_license;
         check_offline_license;
+        check_license_feature;
     local:
         *;
 };

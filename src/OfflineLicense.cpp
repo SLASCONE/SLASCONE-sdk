@@ -1,5 +1,4 @@
 #include "OfflineLicense.h"
-#include "SignedXml.h"
 
 #include <algorithm>
 #include <charconv>
@@ -48,11 +47,44 @@ bool read_field(xmlNodePtr parent, const char *name, std::string &value)
     return true;
 }
 
+char ascii_lower(char c)
+{
+    return c >= 'A' && c <= 'Z' ? static_cast<char>(c + ('a' - 'A')) : c;
+}
+
 bool same_id(std::string_view left, std::string_view right)
 {
-    const auto lower = [](char c) { return c >= 'A' && c <= 'Z' ? c + ('a' - 'A') : c; };
     return std::equal(left.begin(), left.end(), right.begin(), right.end(),
-                      [&](char l, char r) { return lower(l) == lower(r); });
+                      [](char l, char r) { return ascii_lower(l) == ascii_lower(r); });
+}
+
+std::string normalized_id(std::string_view id)
+{
+    std::string result(id);
+    std::transform(result.begin(), result.end(), result.begin(), ascii_lower);
+    return result;
+}
+
+bool read_features(xmlNodePtr root, std::map<std::string, bool> &features)
+{
+    for (auto node = root->children; node; node = node->next) {
+        if (!matches(node, "features"))
+            continue;
+        std::string id, active;
+        if (!read_field(node, "id", id) || id.empty() || !read_field(node, "is_active", active))
+            return false;
+        constexpr auto whitespace = " \t\r\n";
+        const auto start = active.find_first_not_of(whitespace);
+        if (start == std::string::npos)
+            return false;
+        const auto end = active.find_last_not_of(whitespace);
+        const auto flag = std::string_view(active).substr(start, end - start + 1);
+        const bool enabled = flag == "true" || flag == "1";
+        if ((!enabled && flag != "false" && flag != "0") ||
+            !features.emplace(normalized_id(id), enabled).second)
+            return false;
+    }
+    return true;
 }
 
 bool is_digit(char c)
@@ -198,28 +230,41 @@ SlasconeStatus check_dates(xmlNodePtr license)
 
 }
 
-SlasconeStatus check_license(const char *license_path, const char *activation_path,
-                             const std::string &client_id, const std::string &release,
-                             const std::string &pem)
+SlasconeStatus read_license(const char *license_path, const std::string &pem, OfflineLicense &license)
 {
     VerificationKey key(nullptr, xmlSecKeyDestroy);
     auto status = load_verification_key(pem, key);
     if (status != SLASCONE_OK)
         return status;
 
-    XmlDocument license(nullptr, xmlFreeDoc), activation(nullptr, xmlFreeDoc);
-    status = read_signed_xml(license_path, key, license);
+    status = read_signed_xml(license_path, key, license.document);
     if (status != SLASCONE_OK)
         return status;
-    const auto license_root = xmlDocGetRootElement(license.get());
-    std::string license_key, revision;
+    const auto license_root = xmlDocGetRootElement(license.document.get());
     if (!matches(license_root, "slascone_license_file") ||
-        !read_field(license_root, "license_key", license_key) || license_key.empty() ||
-        !read_field(license_root, "revision_id", revision))
+        !read_field(license_root, "license_key", license.license_key) || license.license_key.empty() ||
+        !read_field(license_root, "revision_id", license.revision) ||
+        !read_field(license_root, "product_id", license.product_id) || license.product_id.empty() ||
+        !read_features(license_root, license.features))
         return SLASCONE_INVALID_XML;
+    return SLASCONE_OK;
+}
 
+SlasconeStatus check_license(const OfflineLicense &license, const char *activation_path,
+                             const std::string &product_id, const std::string &client_id,
+                             const std::string &release, const std::string &pem)
+{
+    if (!same_id(product_id, license.product_id))
+        return SLASCONE_PRODUCT_ID_MISMATCH;
+
+    const auto license_root = xmlDocGetRootElement(license.document.get());
     auto client_source = license_root;
+    XmlDocument activation(nullptr, xmlFreeDoc);
     if (activation_path && *activation_path) {
+        VerificationKey key(nullptr, xmlSecKeyDestroy);
+        auto status = load_verification_key(pem, key);
+        if (status != SLASCONE_OK)
+            return status;
         status = read_signed_xml(activation_path, key, activation);
         if (status != SLASCONE_OK)
             return status;
@@ -229,9 +274,9 @@ SlasconeStatus check_license(const char *license_path, const char *activation_pa
             !read_field(client_source, "license_key", activation_key) || activation_key.empty() ||
             !read_field(client_source, "revision_id", activation_revision))
             return SLASCONE_INVALID_XML;
-        if (!same_id(license_key, activation_key))
+        if (!same_id(license.license_key, activation_key))
             return SLASCONE_LICENSE_KEY_MISMATCH;
-        if (!same_id(revision, activation_revision))
+        if (!same_id(license.revision, activation_revision))
             return SLASCONE_REVISION_MISMATCH;
     }
 
@@ -241,8 +286,14 @@ SlasconeStatus check_license(const char *license_path, const char *activation_pa
     if (bound_client.empty() || !same_id(client_id, bound_client))
         return SLASCONE_CLIENT_ID_MISMATCH;
 
-    status = check_release(license_root, release);
+    const auto status = check_release(license_root, release);
     return status == SLASCONE_OK ? check_dates(license_root) : status;
+}
+
+bool is_feature_active(const OfflineLicense &license, std::string_view feature_id)
+{
+    const auto feature = license.features.find(normalized_id(feature_id));
+    return feature != license.features.end() && feature->second;
 }
 
 }

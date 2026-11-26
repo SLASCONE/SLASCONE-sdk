@@ -59,7 +59,8 @@ if(BUILD_TESTING)
     add_executable(slascone_client_c_offline tests/c_offline.c)
     target_compile_features(slascone_client_c_offline PRIVATE c_std_11)
     target_link_libraries(slascone_client_c_offline PRIVATE SlasconeClient)
-    add_test(NAME slascone_client_c_offline COMMAND slascone_client_c_offline)
+    add_test(NAME slascone_client_c_offline COMMAND slascone_client_c_offline
+        "${CMAKE_CURRENT_BINARY_DIR}/offline-cache-test.xml")
     set_tests_properties(slascone_client_c_offline PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures"
     )

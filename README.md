@@ -1,7 +1,6 @@
-# SlasconeClient
+# Slascone Client SDK
 
-A C++17 shared library with a C ABI. `slascone_client_abi_version()` returns
-`2`. The library reads and caches signed SLASCONE offline licenses, checks
+A C++17 shared library with a C ABI. The library reads and caches signed SLASCONE offline licenses, checks
 inline or separate activation, and exposes signed feature flags. Offline
 verification does not contact the service.
 
